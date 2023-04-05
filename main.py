@@ -22,6 +22,8 @@ class simulator:
         
         print(glob.db.execute("SELECT * FROM control_rods"))
 
+        self.debug_mode = False
+
         self.average_reactivity = 0.00
         self.average_heat = 0.00
         self.average_void = 0.00
@@ -37,8 +39,6 @@ class simulator:
         self.scram_active = False
         self.selected_cr = "02-19"
 
-        self.cr_moving = False
-
         self.cr_direction = 0
         # 0: not moving
         # 1: inserting
@@ -52,14 +52,12 @@ class simulator:
 
 
     def withdraw_selected_cr(self, continuous = False):
-        if self.rod_withdraw_block or self.cr_moving:
+        if self.rod_withdraw_block or self.cr_direction != 0:
             return
 
         # TODO: rod groups
-
-        # TODO: fix rods still trying to withdraw during scram
-        
         rod = glob.db.execute("SELECT rod_number, cr_insertion FROM control_rods WHERE cr_selected = 1")[0]
+
         insertion = rod[1]
         target_insertion = insertion + 1
         rod = rod[0]
@@ -70,9 +68,11 @@ class simulator:
 
         # insert for 0.6 seconds before withdrawl
         runs = 0
-        while runs < 6: 
+        while runs < 6 and not self.scram_active: 
             self.cr_direction = 1
-            insertion -= 0.092
+            insertion -= 0.041
+            if self.debug_mode:
+                print(f"IN: {insertion}")
             glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [insertion, rod]) 
             time.sleep(0.1)
             runs += 1
@@ -81,29 +81,79 @@ class simulator:
 
         # withdraw for 1.5 seconds
         runs = 0
-        while runs < 15: 
+        while runs < 15 and not self.scram_active: 
             self.cr_direction = 2
-            insertion += 0.092
+            insertion += 0.072
+            if self.debug_mode:
+                print(f"WD: {insertion}")
             glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [insertion, rod]) 
             time.sleep(0.1)
             runs += 1
 
         # let the rod settle into the notch
+        # TODO: settle after continuous withdraw
         if continuous == False:
             runs = 0
-            while runs < 50: 
+            while runs < 60 and not self.scram_active: 
+                self.cr_direction = 3
+                if insertion >= target_insertion:
+                    insertion = target_insertion
+                else:
+                    insertion += 0.0032
+                
+                if self.debug_mode: 
+                    print(f"SE: {insertion}")
+                glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [insertion, rod]) 
+                time.sleep(0.1)
+                runs += 1
+            glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [target_insertion, rod]) 
+        self.cr_direction = 0
+
+    def insert_selected_cr(self, continuous = False):
+        if self.rod_insert_block or self.cr_direction != 0:
+            return
+
+        # TODO: rod groups
+        
+        rod = glob.db.execute("SELECT rod_number, cr_insertion FROM control_rods WHERE cr_selected = 1")[0]
+        insertion = rod[1]
+        target_insertion = insertion - 1
+        rod = rod[0]
+        
+        # TODO: rod overtravel check
+        if int(insertion) <= 0:
+            return
+
+        # insert for 2.9 seconds
+        runs = 0
+        while runs < 29 and not self.scram_active: 
+            self.cr_direction = 1
+            insertion -= 0.041
+            if self.debug_mode:
+                print(f"IN: {insertion}")
+            glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [insertion, rod]) 
+            time.sleep(0.1)
+            runs += 1
+
+        time.sleep(1.4)
+
+        # let the rod settle into the notch
+        if continuous == False:
+            runs = 0
+            while runs < 53 and not self.scram_active: 
                 self.cr_direction = 3
                 if insertion >= target_insertion:
                     insertion = target_insertion
                 else:
                     insertion += 0.0038
-                    
+                if self.debug_mode:
+                    print(f"SE: {insertion}")
                 glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [insertion, rod]) 
                 time.sleep(0.1)
                 runs += 1
-            insertion = target_insertion
-        self.cr_moving = False
+            glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [target_insertion, rod]) 
         self.cr_direction = 0
+
 
 
     def control_rods_cycle(self):
@@ -165,7 +215,7 @@ class simulator:
 
 
     def run_gui(self, layout):
-        layout.append([sg.Button("Withdraw"), sg.Button("Insert (TODO)"), sg.Button("SCRAM")])
+        layout.append([sg.Button("Withdraw"), sg.Button("Insert"), sg.Button("SCRAM")])
         core = self.rod_display().split("\n")
         lines = 0
         for line in core:
@@ -198,6 +248,9 @@ class simulator:
 
             elif event == "Withdraw":
                 threading.Thread(target=lambda: self.withdraw_selected_cr(), daemon=False).start()
+
+            elif event == "Insert":
+                threading.Thread(target=lambda: self.insert_selected_cr(), daemon=False).start()
 
             # See if user wants to quit or window was closed
             elif event == sg.WINDOW_CLOSED or event == "Quit":
