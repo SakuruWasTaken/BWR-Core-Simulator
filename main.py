@@ -24,13 +24,7 @@ class simulator:
 
         self.debug_mode = False
 
-        self.average_reactivity = 0.00
-        self.average_heat = 0.00
-        self.average_void = 0.00
-        self.average_power_range = 0.00
-        self.source_range = 0.00
-
-        self.mode_switch_position = 2
+        self.mode_switch_position = 3
         # 0: shutdown
         # 1: refuel
         # 2: startup
