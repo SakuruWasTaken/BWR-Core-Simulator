@@ -1,0 +1,3 @@
+PySimpleGUIWeb
+sqlite3worker
+remi==2022.7.27
