@@ -1,10 +1,11 @@
-import os, sys, time, threading, random, asyncio
+import os, sys, time, threading, random
 
 from sqlite3worker import Sqlite3Worker
+import PySimpleGUIWeb as sg
 
 import helpers
 import glob
-import PySimpleGUIWeb as sg
+
 
 class simulator:
     def __init__(self):
@@ -33,6 +34,7 @@ class simulator:
         self.scram_active = False
         self.selected_cr = "02-19"
 
+        self.moving_rods = []
         self.cr_direction = 0
         # 0: not moving
         # 1: inserting
@@ -59,6 +61,8 @@ class simulator:
         # TODO: rod overtravel check
         if int(insertion) >= 48:
             return
+
+        self.moving_rods.append(rod)
 
         # insert for 0.6 seconds before withdrawl
         runs = 0
@@ -101,6 +105,11 @@ class simulator:
                 time.sleep(0.1)
                 runs += 1
             glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [target_insertion, rod]) 
+
+        try:
+            self.moving_rods.remove(rod)
+        except:
+            pass
         self.cr_direction = 0
 
     def insert_selected_cr(self, continuous = False):
@@ -117,6 +126,8 @@ class simulator:
         # TODO: rod overtravel check
         if int(insertion) <= 0:
             return
+
+        self.moving_rods.append(rod)
 
         # insert for 2.9 seconds
         runs = 0
@@ -146,6 +157,11 @@ class simulator:
                 time.sleep(0.1)
                 runs += 1
             glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [target_insertion, rod]) 
+
+        try:
+            self.moving_rods.remove(rod)
+        except:
+            pass
         self.cr_direction = 0
 
 
@@ -164,20 +180,28 @@ class simulator:
             cr_drift_alarm = bool(rod[8])
             cr_selected = True if bool(rod[6]) == True and self.selected_cr == rod_number else False
 
-            if cr_scram == True and cr_insertion != 0:
-                cr_accum_trouble = True
-
-                # in a few videos from columbia's simulator, some of the "DRIFT" indicators
-                # seem to remain lit following a scram, i do not know what causes this, 
-                # but i will do this to replicate that effect.
-                if cr_insertion == 48 and random.randint(1, 15) == 5:
-                    cr_drift_alarm = True
-
+            if cr_scram == True: 
                 if cr_insertion != 0:
-                    # the time from full out to full in is around ~2.6 seconds
-                    cr_insertion -= 1.84
-                    if cr_insertion <= 0:
-                        cr_insertion = 0
+                    if not rod_number in self.moving_rods:
+                        self.moving_rods.append(rod_number)
+                    cr_accum_trouble = True
+
+                    # in a few videos from columbia's simulator, some of the "DRIFT" indicators
+                    # seem to remain lit following a scram, i do not know what causes this, 
+                    # but i will do this to replicate that effect.
+                    if cr_insertion == 48 and random.randint(1, 15) == 5:
+                        cr_drift_alarm = True
+
+                    if cr_insertion != 0:
+                        # the time from full out to full in is around ~2.6 seconds
+                        cr_insertion -= 1.84
+                        if cr_insertion <= 0:
+                            cr_insertion = 0
+                else:
+                    try:
+                        self.moving_rods.remove(rod_number)
+                    except:
+                        pass
 
             glob.db.execute("UPDATE control_rods SET cr_insertion = ?, cr_scram = ?, cr_selected = ?, cr_accum_trouble = ?, cr_drift_alarm = ? WHERE rod_number = ?", 
                             [cr_insertion, int(cr_scram), int(cr_selected), int(cr_accum_trouble), int(cr_drift_alarm), rod_number]
@@ -203,17 +227,25 @@ class simulator:
                 final_message = f"{final_message}\n"
             y = int(rod_number.split("-")[1])
 
+            if rod_number in self.moving_rods:
+                rod_insertion = "---"
+
+            if len(str(rod_insertion)) == 1:
+                rod_insertion = f"0{rod_insertion}"
+
             final_message = f"{final_message} {rod_insertion}"
 
         return final_message # goodbye
 
 
     def run_gui(self, layout):
+        # TODO: mode switch
+        #layout.append([sg.Button("Withdraw"), sg.Button("Insert"), sg.Button("SCRAM")])
         layout.append([sg.Button("Withdraw"), sg.Button("Insert"), sg.Button("SCRAM")])
         core = self.rod_display().split("\n")
         lines = 0
         for line in core:
-            layout.append([sg.Text(line, justification="center", key=str(lines))])
+            layout.append([sg.Text(line, justification="center", key=f"ROD_DISPLAY_{str(lines)}")])
             lines += 1
         sg.theme("Dark Grey 4")
 
@@ -227,7 +259,7 @@ class simulator:
                 core = self.rod_display().split("\n")
                 lines = 0
                 for line in core:
-                    window[str(lines)].update(line)
+                    window[f"ROD_DISPLAY_{str(lines)}"].update(line)
                     lines += 1
             elif len(event) == 5 and "-" in event:
                 # we can assume it's a rod
