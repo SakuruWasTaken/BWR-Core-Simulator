@@ -233,7 +233,7 @@ class simulator:
             if len(str(rod_insertion)) == 1:
                 rod_insertion = f"0{rod_insertion}"
 
-            final_message = f"{final_message} {rod_insertion}"
+            final_message = f"{final_message}|{rod_insertion}"
 
         return final_message # goodbye
 
@@ -243,10 +243,13 @@ class simulator:
         #layout.append([sg.Button("Withdraw"), sg.Button("Insert"), sg.Button("SCRAM")])
         layout.append([sg.Button("Withdraw"), sg.Button("Insert"), sg.Button("SCRAM")])
         core = self.rod_display().split("\n")
-        lines = 0
+        rods_number = 0
         for line in core:
-            layout.append([sg.Text(line, justification="center", key=f"ROD_DISPLAY_{str(lines)}")])
-            lines += 1
+            rods = []
+            for rod in line.split("|"):
+                rods.append(sg.Text(rod, justification="center", key=f"ROD_DISPLAY_{str(rods_number)}", text_color='darkred'))
+                rods_number += 1
+            layout.append(rods)
         sg.theme("Dark Grey 4")
 
         # Create the window
@@ -257,10 +260,13 @@ class simulator:
             event, values = window.read(timeout=100 if not self.scram_active else 20)
             if event == sg.TIMEOUT_EVENT:
                 core = self.rod_display().split("\n")
-                lines = 0
+                rods_number = 0
                 for line in core:
-                    window[f"ROD_DISPLAY_{str(lines)}"].update(line)
-                    lines += 1
+                    rods = line.split("|")
+                    for rod in rods:
+                        color = "darkred" if rod == "48" else "greenyellow" if rod == "---" or rod == "00" else "black" if rod == "49" else "orange" 
+                        window[f"ROD_DISPLAY_{str(rods_number)}"].update(rod, text_color=color)
+                        rods_number += 1
             elif len(event) == 5 and "-" in event:
                 # we can assume it's a rod
                 # TODO: remove selected value from db and just use self.selected_cr
