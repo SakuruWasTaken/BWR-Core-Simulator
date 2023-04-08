@@ -239,21 +239,26 @@ class simulator:
 
 
     def run_gui(self, layout):
+        
+        column_1 = layout
+        column_2 = [[sg.Text("Rod Motion")], [sg.Button("Withdraw", size=(5.2, 2)), sg.Button("Insert", size=(5.2, 2)), sg.Button("SCRAM", size=(5.2, 2))]]
+        column_3 = [[sg.Text("Rod Positions")]]
         # TODO: mode switch
-        #layout.append([sg.Button("Withdraw"), sg.Button("Insert"), sg.Button("SCRAM")])
-        layout.append([sg.Button("Withdraw"), sg.Button("Insert"), sg.Button("SCRAM")])
         core = self.rod_display().split("\n")
         rods_number = 0
         for line in core:
             rods = []
             for rod in line.split("|"):
-                rods.append(sg.Text(rod, justification="center", key=f"ROD_DISPLAY_{str(rods_number)}", text_color='darkred'))
+                rods.append(sg.Text(rod, justification="center", key=f"ROD_DISPLAY_{str(rods_number)}", text_color='darkred', pad=(2,2)))
                 rods_number += 1
-            layout.append(rods)
-        sg.theme("Dark Grey 4")
+            column_3.append(rods)
 
         # Create the window
-        window = sg.Window("Window Title", layout, element_justification='c', element_padding=(4,4))
+        layout = [[sg.Column(column_1, element_justification='c'),
+                   sg.Column(column_2, element_justification='c'),
+                   sg.Column(column_3, element_justification='c')
+                 ]]
+        window = sg.Window("Window Title", layout, element_padding=(4,4))
 
         # Display and interact with the Window using an Event Loop
         while True:
@@ -264,7 +269,7 @@ class simulator:
                 for line in core:
                     rods = line.split("|")
                     for rod in rods:
-                        color = "darkred" if rod == "48" else "greenyellow" if rod == "---" or rod == "00" else "black" if rod == "49" else "orange" 
+                        color = "darkred" if rod == "48" or rod == "---" else "greenyellow" if rod == "00" else "black" if rod == "49" else "orange" 
                         window[f"ROD_DISPLAY_{str(rods_number)}"].update(rod, text_color=color)
                         rods_number += 1
             elif len(event) == 5 and "-" in event:
