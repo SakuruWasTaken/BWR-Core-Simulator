@@ -2,7 +2,24 @@ import glob
 import PySimpleGUIWeb as sg
 
 def generate_control_rods():
+    rods_not_full_out = [
+        "26-27",
+        "10-27",
+        "42-27",
+        "42-43",
+        "26-43",
+        "10-43",
+        "18-35",
+        "34-35",
+        "26-11",
+        "10-11",
+        "42-11",
+        "34-19",
+        "18-19"
+    ]
+
     layout = []
+
     x = 18
     y = 51
     rods_to_generate = 0
@@ -41,8 +58,10 @@ def generate_control_rods():
 
                 rod_number = f"{x_str}-{y_str}"
 
-                glob.db.execute("INSERT INTO control_rods (rod_number, heat, flux, void, cr_insertion, cr_scram, cr_selected, cr_accum_trouble, cr_drift_alarm) VALUES (?, 24.00, 0, 0, 24, 0, ?, 0, 0)", 
-                    [rod_number, 1 if rod_number == "02-19" else 0]
+                rod_insertion = "08" if rod_number in rods_not_full_out else "48"
+
+                glob.db.execute("INSERT INTO control_rods (rod_number, heat, flux, void, cr_insertion, cr_scram, cr_selected, cr_accum_trouble, cr_drift_alarm) VALUES (?, 24.00, 0, 0, ?, 0, ?, 0, 0)", 
+                    [rod_number, rod_insertion, 1 if rod_number == "02-19" else 0]
                 )
                 # size=(5.2, 2) makes the buttons 52x52px
                 rods_row.append(sg.Button(rod_number, size=(5.2, 2)))
