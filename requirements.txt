@@ -1,2 +1,2 @@
-PySimpleGUIWeb==0.39.0 
 sqlite3worker
+remi==2022.7.27

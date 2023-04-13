@@ -1,11 +1,12 @@
 import os, sys, time, threading, random
 
 from sqlite3worker import Sqlite3Worker
+# TODO: switch to more flexible GUI library
 import PySimpleGUIWeb as sg
 
 import helpers
 import glob
-
+import statistics
 
 class simulator:
     def __init__(self):
@@ -20,10 +21,10 @@ class simulator:
 
         
         threading.Thread(target=lambda: self.run_gui(helpers.generate_control_rods()), daemon=False).start()
-        
-        print(glob.db.execute("SELECT * FROM control_rods"))
 
         self.debug_mode = False
+
+        # stuff for rods
 
         self.mode_switch_position = 3
         # 0: shutdown
@@ -43,6 +44,18 @@ class simulator:
 
         self.rod_withdraw_block = False
         self.rod_insert_block = False
+
+        self.scram_timer = -1
+
+        # stuff for physics
+
+        self.reactivity = 0.00
+        self.control_rod_coefficient = 44.2043795620438
+        self.void_coefficient = -7.9543795620438
+        self.heat = 290.00
+        self.heat_coefficient = -36.25
+
+        self.aprm = 100.0
 
         self.model_timer()
 
@@ -181,6 +194,9 @@ class simulator:
             cr_selected = True if bool(rod[6]) == True and self.selected_cr == rod_number else False
 
             if cr_scram == True: 
+                if self.scram_timer == -1:
+                    self.scram_timer = 120
+                self.rod_withdraw_block = True
                 if cr_insertion != 0:
                     if not rod_number in self.moving_rods:
                         self.moving_rods.append(rod_number)
@@ -207,14 +223,47 @@ class simulator:
                             [cr_insertion, int(cr_scram), int(cr_selected), int(cr_accum_trouble), int(cr_drift_alarm), rod_number]
             )
 
+    def physics_cycle(self):
+        # TODO: calculate physics for each rod in reactor
+
+        # calculate control rod coefficient
+        control_rods = glob.db.execute("SELECT cr_insertion FROM control_rods")
+        #print(glob.db.execute("SELECT COUNT(*) FROM control_rods"))
+        rods = []
+        for rod in control_rods:
+            rods.append(float(rod[0]))
+        average_insertion = statistics.mean(rods)
+        # TODO: calculate worth for individual rods
+        self.control_rod_coefficient = average_insertion
+        #print(average_insertion)
+        #print(self.control_rod_coefficient)
+
+        # calculate heat coefficient
+        self.heat_coefficient = (self.heat - (self.heat/8)) - self.heat
+        #print(self.heat_coefficient)
+
+
     def model_timer(self):
         # TODO: proper timer instead of just time.sleep
         while True:
-            threading.Thread(target=self.control_rods_cycle()).start()
+            threading.Thread(target=lambda: self.control_rods_cycle(), daemon=False).start()
+            threading.Thread(target=lambda: self.physics_cycle(), daemon=False).start()
+            if self.scram_timer >= 1:
+                self.scram_timer -= 1
+            elif self.scram_timer != -1:
+                self.rod_insert_block = True
             time.sleep(0.1)
 
 
+    def reset_scram(self):
+        if self.scram_timer == 0:
+            glob.db.execute("UPDATE control_rods SET cr_scram = 0, cr_drift_alarm = 0, cr_accum_trouble = 0")
+            self.rod_withdraw_block = False
+            self.scram_active = False
+            self.scram_timer = -1
+
     def rod_display(self):
+        # TODO: move this into the GUI code
         all_rods_insertion = glob.db.execute("SELECT rod_number, cr_insertion FROM control_rods")
         rods_printed_row = 0
         y = 0
@@ -228,20 +277,19 @@ class simulator:
             y = int(rod_number.split("-")[1])
 
             if rod_number in self.moving_rods:
-                rod_insertion = "---"
+                rod_insertion = "--"
 
             if len(str(rod_insertion)) == 1:
                 rod_insertion = f"0{rod_insertion}"
 
-            final_message = f"{final_message}|{rod_insertion}"
-
+            final_message = f"{final_message}|{rod_insertion}{'sel' if self.selected_cr == rod_number else ''}"
         return final_message # goodbye
 
 
     def run_gui(self, layout):
         
         column_1 = layout
-        column_2 = [[sg.Text("Rod Motion")], [sg.Button("Withdraw", size=(5.2, 2)), sg.Button("Insert", size=(5.2, 2)), sg.Button("SCRAM", size=(5.2, 2))]]
+        column_2 = [[sg.Text("Rod Motion")], [sg.Button("Withdraw", size=(5.2, 2)), sg.Button("Insert", size=(5.2, 2)), sg.Button("SCRAM", size=(5.2, 2)), sg.Button("Reset SCRAM", size=(5.2, 2))]]
         column_3 = [[sg.Text("Rod Positions")]]
         # TODO: mode switch
         core = self.rod_display().split("\n")
@@ -262,15 +310,20 @@ class simulator:
 
         # Display and interact with the Window using an Event Loop
         while True:
-            event, values = window.read(timeout=100 if not self.scram_active else 20)
+            event, values = window.read(timeout=100 if not self.scram_active else 2.4)
             if event == sg.TIMEOUT_EVENT:
                 core = self.rod_display().split("\n")
                 rods_number = 0
                 for line in core:
                     rods = line.split("|")
                     for rod in rods:
-                        color = "darkred" if rod == "48" or rod == "---" else "greenyellow" if rod == "00" else "black" if rod == "49" else "orange" 
-                        window[f"ROD_DISPLAY_{str(rods_number)}"].update(rod, text_color=color)
+                        font = ("monospace", 15)
+                        # check if rod is selected
+                        if len(rod) >= 5:
+                            font = ("monospace", 18)
+                            rod = rod[:-3] # <--- cat face
+                        color = "darkred" if rod == "48" or rod == "--" else "greenyellow" if rod == "00" else "black" if rod == "49" else "orange" 
+                        window[f"ROD_DISPLAY_{str(rods_number)}"].update(rod, text_color=color, font=font)
                         rods_number += 1
             elif len(event) == 5 and "-" in event:
                 # we can assume it's a rod
@@ -289,6 +342,9 @@ class simulator:
             elif event == "Insert":
                 threading.Thread(target=lambda: self.insert_selected_cr(), daemon=False).start()
 
+            elif event == "Reset SCRAM":
+                threading.Thread(target=lambda: self.reset_scram(), daemon=False).start()
+
             # See if user wants to quit or window was closed
             elif event == sg.WINDOW_CLOSED or event == "Quit":
                 break
@@ -305,3 +361,4 @@ except KeyboardInterrupt:
     os._exit(0)
 except Exception as e:
     print(e) 
+    os._exit(0)
