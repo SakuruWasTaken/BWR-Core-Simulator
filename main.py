@@ -64,6 +64,7 @@ class simulator:
         threading.Thread(target=lambda: self.run_gui(self.layout), daemon=False).start()
         
         group = 0
+        # you can change this value to set the group you'll be on when the sim is run
         while group < 72:
             rods_helper.remove_group(group)
             group += 1
@@ -350,7 +351,8 @@ class simulator:
                 window["insert_block"].update(text_color="darkred" if self.rod_insert_block else "greenyellow")
                 window["scram_active"].update(text_color="darkred" if self.scram_active else "greenyellow")
                 window["selected_rod"].update(f"Selected rod: {self.selected_cr}")
-                window["current_group"].update(f"Current group: {self.current_group + 1}")
+                #window["current_group"].update(f"Current group: {self.current_group + 1}")
+                window["current_group"].update(f"Current group: TODO")
                 window["withdraw_lt"].update(text_color="darkred" if self.cr_direction == 2 else "greenyellow")
                 window["insert_lt"].update(text_color="darkred" if self.cr_direction == 1 else "greenyellow")
                 window["settle_lt"].update(text_color="darkred" if self.cr_direction == 3 else "greenyellow")
