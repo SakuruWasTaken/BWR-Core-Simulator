@@ -259,6 +259,7 @@ class simulator:
         if self.scram_timer == 0:
             glob.db.execute("UPDATE control_rods SET cr_scram = 0, cr_drift_alarm = 0, cr_accum_trouble = 0")
             self.rod_withdraw_block = False
+            self.rod_insert_block = False
             self.scram_active = False
             self.scram_timer = -1
 
