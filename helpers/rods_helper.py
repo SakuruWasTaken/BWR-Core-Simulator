@@ -1,50 +1,44 @@
 import glob
 import PySimpleGUIWeb as sg
+from constants import rod_groups
+
+def remove_group(group_to_remove):
+    for rod in rod_groups.groups[group_to_remove]:
+        rod = rod.split("|")
+        glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [rod[1].split("-")[1], rod[0]])
+
 
 def generate_control_rods():
-    rods_not_full_out = [
-        "26-27",
-        "10-27",
-        "42-27",
-        "42-43",
-        "26-43",
-        "10-43",
-        "18-35",
-        "34-35",
-        "26-11",
-        "10-11",
-        "42-11",
-        "34-19",
-        "18-19"
-    ]
-
     layout = []
 
     x = 18
-    y = 51
+    y = 59
     rods_to_generate = 0
     rods_generated_row = 0
     rods_generated_total = 0
 
-    # our reactor has a total of 137 rods
-    while rods_generated_total < 137:
+    # our reactor has a total of 185 rods
+    while rods_generated_total < 185:
         # calculate how many control rods we need for each row, 
         # and our starting position on y (as the rods in a BWR core are in a circular pattern)
-        if y == 51 or y == 3:
-            rods_to_generate = 5
+        if y == 59 or y == 3:
+            rods_to_generate = 7
             x = 18
-        elif y == 47 or y == 7:
+        elif y == 55 or y == 7:
             rods_to_generate = 9
-            x = 10
-        elif y == 43 or y == 11 or y == 39 or y == 15:
+            x = 14
+        elif y == 51 or y == 11:
             rods_to_generate = 11
-            x = 6
-        elif y <= 35 and y >= 19:
+            x = 10
+        elif y == 47 or y == 15:
             rods_to_generate = 13
+            x = 6
+        elif y <= 43 and y >= 19:
+            rods_to_generate = 15
             x = 2
 
         rods_row = []
-        while x <= 50 and y <= 51:
+        while x <= 58 and y <= 59:
             # create rods
             while rods_generated_row < rods_to_generate:
                 # there's probably a better way to do this...
@@ -58,10 +52,8 @@ def generate_control_rods():
 
                 rod_number = f"{x_str}-{y_str}"
 
-                rod_insertion = "08" if rod_number in rods_not_full_out else "48"
-
-                glob.db.execute("INSERT INTO control_rods (rod_number, heat, flux, void, cr_insertion, cr_scram, cr_selected, cr_accum_trouble, cr_drift_alarm) VALUES (?, 24.00, 0, 0, ?, 0, ?, 0, 0)", 
-                    [rod_number, rod_insertion, 1 if rod_number == "02-19" else 0]
+                glob.db.execute("INSERT INTO control_rods (rod_number, heat, flux, void, cr_insertion, cr_scram, cr_selected, cr_accum_trouble, cr_drift_alarm) VALUES (?, 24.00, 0, 0, 00, 0, ?, 0, 0)", 
+                    [rod_number, 1 if rod_number == "02-19" else 0]
                 )
                 # size=(5.2, 2) makes the buttons 52x52px
                 rods_row.append(sg.Button(rod_number, size=(5.2, 2)))
@@ -81,4 +73,8 @@ def generate_control_rods():
 
     return layout
 
+def remove_group(group_to_remove):
+    for rod in rod_groups.groups[group_to_remove]:
+        rod = rod.split("|")
+        glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [rod[1].split("-")[1], rod[0]])
 

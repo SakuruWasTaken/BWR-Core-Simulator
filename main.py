@@ -4,7 +4,7 @@ from sqlite3worker import Sqlite3Worker
 # TODO: switch to more flexible GUI library
 import PySimpleGUIWeb as sg
 
-import helpers
+from helpers import rods_helper
 import glob
 import statistics
 
@@ -18,9 +18,6 @@ class simulator:
             pass
         glob.db = Sqlite3Worker("BWR_model.db")
         glob.db.execute("CREATE TABLE control_rods(rod_number varchar(5) NOT NULL, heat double, flux double, void double, cr_insertion double, cr_scram int, cr_selected int, cr_accum_trouble int, cr_drift_alarm int)")
-
-        
-        threading.Thread(target=lambda: self.run_gui(helpers.generate_control_rods()), daemon=False).start()
 
         self.debug_mode = False
 
@@ -47,7 +44,10 @@ class simulator:
 
         self.scram_timer = -1
 
+        self.current_group = 2
+
         # stuff for physics
+        # all of this stuff related to pysics is currently unused experimental stuff
 
         self.reactivity = 0.00
         self.control_rod_coefficient = 44.2043795620438
@@ -57,7 +57,22 @@ class simulator:
 
         self.aprm = 100.0
 
+        # actually running the simulator
+
+        self.layout = rods_helper.generate_control_rods()
+
+        threading.Thread(target=lambda: self.run_gui(self.layout), daemon=False).start()
+        
+
+        rods_helper.remove_group(0)
+        rods_helper.remove_group(1)
+        rods_helper.remove_group(2)
+        rods_helper.remove_group(3)
+
+
         self.model_timer()
+
+        
 
 
     def withdraw_selected_cr(self, continuous = False):
@@ -224,6 +239,8 @@ class simulator:
             )
 
     def physics_cycle(self):
+        # unused experimental stuff
+
         # TODO: calculate physics for each rod in reactor
 
         # calculate control rod coefficient
@@ -292,6 +309,23 @@ class simulator:
         column_1 = layout
         column_2 = [[sg.Text("Rod Motion")], [sg.Button("Withdraw", size=(5.2, 2)), sg.Button("Insert", size=(5.2, 2)), sg.Button("SCRAM", size=(5.2, 2)), sg.Button("Reset SCRAM", size=(5.2, 2))]]
         column_3 = [[sg.Text("Rod Positions")]]
+        column_4 = [[sg.Text("Information")], 
+        [
+            sg.Text("Rod Withdraw Block", text_color='greenyellow', key="withdraw_block"),
+            sg.Text("Rod Insert Block", text_color='greenyellow', key="insert_block"),
+            sg.Text("SCRAM Active", text_color='greenyellow', key="scram_active")
+        ],
+        [
+            sg.Text("Selected rod: 02-19", key="selected_rod"),
+            sg.Text("Current group: 3", key="current_group")
+        ],
+        [
+            sg.Text("Withdraw", text_color='greenyellow', key="withdraw_lt"),
+            sg.Text("Insert", text_color='greenyellow', key="insert_lt"),
+            sg.Text("Settle", text_color='greenyellow', key="settle_lt")
+            
+        ]
+        ]
         # TODO: mode switch
         core = self.rod_display().split("\n")
         rods_number = 0
@@ -305,7 +339,8 @@ class simulator:
         # Create the window
         layout = [[sg.Column(column_1, element_justification='c'),
                    sg.Column(column_2, element_justification='c'),
-                   sg.Column(column_3, element_justification='c')
+                   sg.Column(column_3, element_justification='c'),
+                   sg.Column(column_4, element_justification='c'),
                  ]]
         window = sg.Window("Window Title", layout, element_padding=(4,4))
 
@@ -313,6 +348,15 @@ class simulator:
         while True:
             event, values = window.read(timeout=100 if not self.scram_active else 2.4)
             if event == sg.TIMEOUT_EVENT:
+                window["withdraw_block"].update(text_color="darkred" if self.rod_withdraw_block else "greenyellow")
+                window["insert_block"].update(text_color="darkred" if self.rod_insert_block else "greenyellow")
+                window["scram_active"].update(text_color="darkred" if self.scram_active else "greenyellow")
+                window["selected_rod"].update(f"Selected rod: {self.selected_cr}")
+                window["current_group"].update(f"Current group: {self.current_group + 1}")
+                window["withdraw_lt"].update(text_color="darkred" if self.cr_direction == 2 else "greenyellow")
+                window["insert_lt"].update(text_color="darkred" if self.cr_direction == 1 else "greenyellow")
+                window["settle_lt"].update(text_color="darkred" if self.cr_direction == 3 else "greenyellow")
+
                 core = self.rod_display().split("\n")
                 rods_number = 0
                 for line in core:
