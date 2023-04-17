@@ -63,12 +63,10 @@ class simulator:
 
         threading.Thread(target=lambda: self.run_gui(self.layout), daemon=False).start()
         
-
-        rods_helper.remove_group(0)
-        rods_helper.remove_group(1)
-        rods_helper.remove_group(2)
-        rods_helper.remove_group(3)
-
+        group = 0
+        while group < 72:
+            rods_helper.remove_group(group)
+            group += 1
 
         self.model_timer()
 
