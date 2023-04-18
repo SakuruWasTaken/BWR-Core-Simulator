@@ -5,7 +5,7 @@ from constants import rod_groups
 def remove_group(group_to_remove):
     for rod in rod_groups.groups[group_to_remove]:
         rod = rod.split("|")
-        glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [rod[1].split("-")[1], rod[0]])
+        glob.control_rods[rod[0]].update(cr_insertion=float(rod[1].split("-")[1]))
 
 
 def generate_control_rods():
@@ -52,9 +52,13 @@ def generate_control_rods():
 
                 rod_number = f"{x_str}-{y_str}"
 
-                glob.db.execute("INSERT INTO control_rods (rod_number, heat, flux, void, cr_insertion, cr_scram, cr_selected, cr_accum_trouble, cr_drift_alarm) VALUES (?, 24.00, 0, 0, 00, 0, ?, 0, 0)", 
-                    [rod_number, 1 if rod_number == "02-19" else 0]
-                )
+                glob.control_rods[rod_number] = {
+                        "cr_insertion": 0.00,
+                        "cr_scram": False,
+                        "cr_accum_trouble": False,
+                        "cr_drift_alarm": False
+                }
+
                 # size=(5.2, 2) makes the buttons 52x52px
                 rods_row.append(sg.Button(rod_number, size=(5.2, 2)))
 
@@ -73,8 +77,5 @@ def generate_control_rods():
 
     return layout
 
-def remove_group(group_to_remove):
-    for rod in rod_groups.groups[group_to_remove]:
-        rod = rod.split("|")
-        glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [rod[1].split("-")[1], rod[0]])
+
 

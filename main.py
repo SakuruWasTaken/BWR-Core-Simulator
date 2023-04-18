@@ -1,6 +1,5 @@
 import os, sys, time, threading, random
 
-from sqlite3worker import Sqlite3Worker
 # TODO: switch to more flexible GUI library
 import PySimpleGUIWeb as sg
 
@@ -10,15 +9,6 @@ import statistics
 
 class simulator:
     def __init__(self):
-        # delete the old sqlite database
-        try:
-            os.remove("BWR_model.db")
-            os.remove("BWR_model.db-journal")
-        except:
-            pass
-        glob.db = Sqlite3Worker("BWR_model.db")
-        glob.db.execute("CREATE TABLE control_rods(rod_number varchar(5) NOT NULL, heat double, flux double, void double, cr_insertion double, cr_scram int, cr_selected int, cr_accum_trouble int, cr_drift_alarm int)")
-
         self.debug_mode = False
 
         # stuff for rods
@@ -68,7 +58,6 @@ class simulator:
         while group < 72:
             rods_helper.remove_group(group)
             group += 1
-
         self.model_timer()
 
         
@@ -79,11 +68,10 @@ class simulator:
             return
 
         # TODO: rod groups
-        rod = glob.db.execute("SELECT rod_number, cr_insertion FROM control_rods WHERE cr_selected = 1")[0]
-
-        insertion = rod[1]
+        rod = self.selected_cr
+        insertion = glob.control_rods.get(rod)["cr_insertion"]
         target_insertion = insertion + 1
-        rod = rod[0]
+  
         
         # TODO: rod overtravel check
         if int(insertion) >= 48:
@@ -98,7 +86,7 @@ class simulator:
             insertion -= 0.041
             if self.debug_mode:
                 print(f"IN: {insertion}")
-            glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [insertion, rod]) 
+            glob.control_rods[rod].update(cr_insertion=insertion)
             time.sleep(0.1)
             runs += 1
 
@@ -111,7 +99,7 @@ class simulator:
             insertion += 0.072
             if self.debug_mode:
                 print(f"WD: {insertion}")
-            glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [insertion, rod]) 
+            glob.control_rods[rod].update(cr_insertion=insertion)
             time.sleep(0.1)
             runs += 1
 
@@ -128,10 +116,10 @@ class simulator:
                 
                 if self.debug_mode: 
                     print(f"SE: {insertion}")
-                glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [insertion, rod]) 
+                glob.control_rods[rod].update(cr_insertion=insertion)
                 time.sleep(0.1)
                 runs += 1
-            glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [target_insertion, rod]) 
+            glob.control_rods[rod].update(cr_insertion=target_insertion)
 
         try:
             self.moving_rods.remove(rod)
@@ -144,11 +132,9 @@ class simulator:
             return
 
         # TODO: rod groups
-        
-        rod = glob.db.execute("SELECT rod_number, cr_insertion FROM control_rods WHERE cr_selected = 1")[0]
-        insertion = rod[1]
+        rod = self.selected_cr
+        insertion = glob.control_rods.get(rod)["cr_insertion"]
         target_insertion = insertion - 1
-        rod = rod[0]
         
         # TODO: rod overtravel check
         if int(insertion) <= 0:
@@ -163,7 +149,7 @@ class simulator:
             insertion -= 0.041
             if self.debug_mode:
                 print(f"IN: {insertion}")
-            glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [insertion, rod]) 
+            glob.control_rods[rod].update(cr_insertion=insertion)
             time.sleep(0.1)
             runs += 1
 
@@ -180,10 +166,10 @@ class simulator:
                     insertion += 0.0038
                 if self.debug_mode:
                     print(f"SE: {insertion}")
-                glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [insertion, rod]) 
+                glob.control_rods[rod].update(cr_insertion=insertion)
                 time.sleep(0.1)
                 runs += 1
-            glob.db.execute("UPDATE control_rods SET cr_insertion = ? WHERE rod_number = ?", [target_insertion, rod]) 
+            glob.control_rods[rod].update(cr_insertion=target_insertion)
 
         try:
             self.moving_rods.remove(rod)
@@ -194,27 +180,20 @@ class simulator:
 
 
     def control_rods_cycle(self):
-        control_rods = glob.db.execute("SELECT * FROM control_rods")
-        for rod in control_rods:
-            rod_number = rod[0]
-            cr_insertion = float(rod[4])
-            cr_accum_trouble = bool(rod[7])
-
-            # this is done so it is possible to scram one rod without scramming the whole reactor
-            # iirc this is done in real life for testing purposes.
-            cr_scram = True if bool(rod[5]) == True or self.scram_active == True else False
-
-            cr_drift_alarm = bool(rod[8])
-            cr_selected = True if bool(rod[6]) == True and self.selected_cr == rod_number else False
+        for rod_number, rod_info in glob.control_rods.items():
+            cr_insertion = rod_info["cr_insertion"]
+            cr_accum_trouble = rod_info["cr_accum_trouble"]
+            cr_scram = True if rod_info["cr_scram"] == True or self.scram_active == True else False
+            cr_drift_alarm = rod_info["cr_drift_alarm"]
+            cr_selected = True if self.selected_cr == rod_number else False
 
             if cr_scram == True: 
                 if self.scram_timer == -1:
                     self.scram_timer = 120
                 self.rod_withdraw_block = True
                 if cr_insertion != 0:
-                    if not rod_number in self.moving_rods:
-                        self.moving_rods.append(rod_number)
-                    cr_accum_trouble = True
+                    if self.scram_timer < 117:
+                        cr_accum_trouble = True
 
                     # in a few videos from columbia's simulator, some of the "DRIFT" indicators
                     # seem to remain lit following a scram, i do not know what causes this, 
@@ -222,9 +201,11 @@ class simulator:
                     if cr_insertion == 48 and random.randint(1, 15) == 5:
                         cr_drift_alarm = True
 
-                    if cr_insertion != 0:
+                    if cr_insertion != 0 and self.scram_timer < 114:
+                        if not rod_number in self.moving_rods:
+                            self.moving_rods.append(rod_number)
                         # the time from full out to full in is around ~2.6 seconds
-                        cr_insertion -= 1.84
+                        cr_insertion -= 2.23
                         if cr_insertion <= 0:
                             cr_insertion = 0
                 else:
@@ -233,29 +214,28 @@ class simulator:
                     except:
                         pass
 
-            glob.db.execute("UPDATE control_rods SET cr_insertion = ?, cr_scram = ?, cr_selected = ?, cr_accum_trouble = ?, cr_drift_alarm = ? WHERE rod_number = ?", 
-                            [cr_insertion, int(cr_scram), int(cr_selected), int(cr_accum_trouble), int(cr_drift_alarm), rod_number]
-            )
+            glob.control_rods[rod_number].update(cr_insertion=cr_insertion, cr_scram=cr_scram, cr_accum_trouble=cr_accum_trouble, cr_drift_alarm=cr_drift_alarm)
 
     def physics_cycle(self):
+        return
         # unused experimental stuff
 
         # TODO: calculate physics for each rod in reactor
 
         # calculate control rod coefficient
-        control_rods = glob.db.execute("SELECT cr_insertion FROM control_rods")
+        #control_rods = glob.db.execute("SELECT cr_insertion FROM control_rods")
         #print(glob.db.execute("SELECT COUNT(*) FROM control_rods"))
-        rods = []
-        for rod in control_rods:
-            rods.append(float(rod[0]))
-        average_insertion = statistics.mean(rods)
+        #rods = []
+        #for rod in control_rods:
+        #    rods.append(float(rod[0]))
+        #average_insertion = statistics.mean(rods)
         # TODO: calculate worth for individual rods
-        self.control_rod_coefficient = average_insertion
+        #self.control_rod_coefficient = average_insertion
         #print(average_insertion)
         #print(self.control_rod_coefficient)
 
         # calculate heat coefficient
-        self.heat_coefficient = (self.heat - (self.heat/8)) - self.heat
+        #self.heat_coefficient = (self.heat - (self.heat/8)) - self.heat
         #print(self.heat_coefficient)
 
 
@@ -266,14 +246,13 @@ class simulator:
             threading.Thread(target=lambda: self.physics_cycle(), daemon=False).start()
             if self.scram_timer >= 1:
                 self.scram_timer -= 1
-            elif self.scram_timer != -1:
-                self.rod_insert_block = True
             time.sleep(0.1)
 
 
     def reset_scram(self):
         if self.scram_timer == 0:
-            glob.db.execute("UPDATE control_rods SET cr_scram = 0, cr_drift_alarm = 0, cr_accum_trouble = 0")
+            for rod_number in glob.control_rods.items():
+                glob.control_rods[rod_number].update(cr_scram=False, cr_accum_trouble=False, cr_drift_alarm=False)
             self.rod_withdraw_block = False
             self.rod_insert_block = False
             self.scram_active = False
@@ -281,14 +260,12 @@ class simulator:
 
     def rod_display(self):
         # TODO: move this into the GUI code
-        all_rods_insertion = glob.db.execute("SELECT rod_number, cr_insertion FROM control_rods")
         rods_printed_row = 0
         y = 0
         final_message = ""
-        for rod in all_rods_insertion:
+        for rod_number, rod_info in glob.control_rods.items():
             # i know there are better ways to do this, but this is temporary code anyways (as i am planning on implementing a realistic full core display), so i don't care.
-            rod_number = rod[0]
-            rod_insertion = int(rod[1])
+            rod_insertion = int(rod_info["cr_insertion"])
             if y != int(rod_number.split("-")[1]):
                 final_message = f"{final_message}\n"
             y = int(rod_number.split("-")[1])
@@ -375,8 +352,7 @@ class simulator:
                 # TODO: remove selected value from db and just use self.selected_cr
                 self.selected_cr = event
                 # this could potentially cause issues if a query happens in between but i'll fix it later
-                glob.db.execute("UPDATE control_rods SET cr_selected = 0 WHERE cr_selected = 1")
-                glob.db.execute("UPDATE control_rods SET cr_selected = 1 WHERE rod_number = ?", [event])
+                self.selected_cr = event
 
             elif event == "SCRAM":
                 self.scram_active = True
