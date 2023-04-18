@@ -7,6 +7,58 @@ def remove_group(group_to_remove):
         rod = rod.split("|")
         glob.control_rods[rod[0]].update(cr_insertion=float(rod[1].split("-")[1]))
 
+def calculate_current_group():
+    current_group = 0
+    satisfied_groups = []
+    groups_inserted_past_limit = []
+    groups_withdrawn_past_limit = []
+
+    for group in rod_groups.groups:
+        group_satisfied = True
+        for rod in group:
+            # i know there are better ways to do this,
+            # but those would involve changing the format in rod_groups.py,
+            # and i'm not going through that again.
+
+            rod = rod.split("|")
+            group_rod_number = rod[0]
+            limits = rod[1].split("-")
+            withdraw_limit = float(limits[1])
+            insert_limit = float(limits[0])
+
+            current_insertion = glob.control_rods.get(group_rod_number)["cr_insertion"]
+
+            if current_insertion != withdraw_limit:
+                group_satisfied = False
+
+            if current_insertion < insert_limit:
+                groups_inserted_past_limit.append(current_group)
+            elif current_insertion > withdraw_limit:
+                groups_withdrawn_past_limit.append(current_group)
+
+        if group_satisfied:
+            satisfied_groups.append(current_group)
+            #print(f"group {current_group + 1} satisfied")
+
+
+        current_group += 1
+    if satisfied_groups != []:
+        glob.current_group = satisfied_groups[-1] + 1
+        if groups_inserted_past_limit != []:
+            for group in groups_inserted_past_limit:
+                if group == glob.current_group:
+                    print(f"inserted past limit: {group}")
+                    glob.rod_insert_block = True
+
+        elif groups_withdrawn_past_limit != []:
+            for group in groups_withdrawn_past_limit:
+                if group == glob.current_group:
+                    print(f"withdrawn past limit: {group}")
+                    glob.rod_withdraw_block = True
+    else:
+        glob.current_group = 0
+
+
 
 def generate_control_rods():
     layout = []

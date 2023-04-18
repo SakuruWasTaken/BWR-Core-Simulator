@@ -12,13 +12,6 @@ class simulator:
         self.debug_mode = False
 
         # stuff for rods
-
-        self.mode_switch_position = 3
-        # 0: shutdown
-        # 1: refuel
-        # 2: startup
-        # 3: run
-
         self.scram_active = False
         self.selected_cr = "02-19"
 
@@ -29,12 +22,7 @@ class simulator:
         # 2: withdrawing
         # 3: settling
 
-        self.rod_withdraw_block = False
-        self.rod_insert_block = False
-
         self.scram_timer = -1
-
-        self.current_group = 2
 
         # stuff for physics
         # all of this stuff related to pysics is currently unused experimental stuff
@@ -54,8 +42,8 @@ class simulator:
         threading.Thread(target=lambda: self.run_gui(self.layout), daemon=False).start()
         
         group = 0
-        # you can change this value to set the group you'll be on when the sim is run
-        while group < 72:
+
+        while group < glob.current_group:
             rods_helper.remove_group(group)
             group += 1
         self.model_timer()
@@ -64,7 +52,7 @@ class simulator:
 
 
     def withdraw_selected_cr(self, continuous = False):
-        if self.rod_withdraw_block or self.cr_direction != 0:
+        if glob.rod_withdraw_block or self.cr_direction != 0:
             return
 
         # TODO: rod groups
@@ -128,7 +116,7 @@ class simulator:
         self.cr_direction = 0
 
     def insert_selected_cr(self, continuous = False):
-        if self.rod_insert_block or self.cr_direction != 0:
+        if glob.rod_insert_block or self.cr_direction != 0:
             return
 
         # TODO: rod groups
@@ -190,7 +178,7 @@ class simulator:
             if cr_scram == True: 
                 if self.scram_timer == -1:
                     self.scram_timer = 120
-                self.rod_withdraw_block = True
+                glob.rod_withdraw_block = True
                 if cr_insertion != 0:
                     if self.scram_timer < 117:
                         cr_accum_trouble = True
@@ -244,6 +232,9 @@ class simulator:
         while True:
             threading.Thread(target=lambda: self.control_rods_cycle(), daemon=False).start()
             threading.Thread(target=lambda: self.physics_cycle(), daemon=False).start()
+            # TODO: only calculate when rods are moved
+            # TODO: finish group calculation
+            #threading.Thread(target=lambda: rods_helper.calculate_current_group(), daemon=False).start()
             if self.scram_timer >= 1:
                 self.scram_timer -= 1
             time.sleep(0.1)
@@ -253,8 +244,8 @@ class simulator:
         if self.scram_timer == 0:
             for rod_number in glob.control_rods.items():
                 glob.control_rods[rod_number].update(cr_scram=False, cr_accum_trouble=False, cr_drift_alarm=False)
-            self.rod_withdraw_block = False
-            self.rod_insert_block = False
+            glob.rod_withdraw_block = False
+            glob.rod_insert_block = False
             self.scram_active = False
             self.scram_timer = -1
 
@@ -324,12 +315,11 @@ class simulator:
         while True:
             event, values = window.read(timeout=100 if not self.scram_active else 2.4)
             if event == sg.TIMEOUT_EVENT:
-                window["withdraw_block"].update(text_color="darkred" if self.rod_withdraw_block else "greenyellow")
-                window["insert_block"].update(text_color="darkred" if self.rod_insert_block else "greenyellow")
+                window["withdraw_block"].update(text_color="darkred" if glob.rod_withdraw_block else "greenyellow")
+                window["insert_block"].update(text_color="darkred" if glob.rod_insert_block else "greenyellow")
                 window["scram_active"].update(text_color="darkred" if self.scram_active else "greenyellow")
                 window["selected_rod"].update(f"Selected rod: {self.selected_cr}")
-                #window["current_group"].update(f"Current group: {self.current_group + 1}")
-                window["current_group"].update(f"Current group: TODO")
+                window["current_group"].update(f"Current group: {glob.current_group + 1}")
                 window["withdraw_lt"].update(text_color="darkred" if self.cr_direction == 2 else "greenyellow")
                 window["insert_lt"].update(text_color="darkred" if self.cr_direction == 1 else "greenyellow")
                 window["settle_lt"].update(text_color="darkred" if self.cr_direction == 3 else "greenyellow")
