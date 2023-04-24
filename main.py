@@ -58,7 +58,7 @@ class simulator:
         # TODO: rod groups
         rod = self.selected_cr
         insertion = glob.control_rods.get(rod)["cr_insertion"]
-        target_insertion = insertion + 1
+        target_insertion = insertion + 2
   
         
         # TODO: rod overtravel check
@@ -75,7 +75,7 @@ class simulator:
         runs = 0
         while runs < 6 and not self.scram_active: 
             self.cr_direction = 1
-            insertion -= 0.041
+            insertion -= 0.082
             if self.debug_mode:
                 print(f"IN: {insertion}")
             glob.control_rods[rod].update(cr_insertion=insertion)
@@ -88,7 +88,7 @@ class simulator:
         runs = 0
         while runs < 15 and not self.scram_active: 
             self.cr_direction = 2
-            insertion += 0.072
+            insertion += 0.144
             if self.debug_mode:
                 print(f"WD: {insertion}")
             glob.control_rods[rod].update(cr_insertion=insertion)
@@ -106,7 +106,7 @@ class simulator:
                 if insertion >= target_insertion:
                     insertion = target_insertion
                 else:
-                    insertion += 0.0032
+                    insertion += 0.0064
                 
                 if self.debug_mode: 
                     print(f"SE: {insertion}")
@@ -128,7 +128,7 @@ class simulator:
         # TODO: rod groups
         rod = self.selected_cr
         insertion = glob.control_rods.get(rod)["cr_insertion"]
-        target_insertion = insertion - 1
+        target_insertion = insertion - 2
         
         # TODO: rod overtravel check
         if int(insertion) <= 0:
@@ -143,7 +143,7 @@ class simulator:
         runs = 0
         while runs < 29 and not self.scram_active: 
             self.cr_direction = 1
-            insertion -= 0.041
+            insertion -= 0.082
             if self.debug_mode:
                 print(f"IN: {insertion}")
             glob.control_rods[rod].update(cr_insertion=insertion)
@@ -158,7 +158,7 @@ class simulator:
                 if insertion >= target_insertion:
                     insertion = target_insertion
                 else:
-                    insertion += 0.0038
+                    insertion += 0.0076
                 if self.debug_mode:
                     print(f"SE: {insertion}")
                 glob.control_rods[rod].update(cr_insertion=insertion)
