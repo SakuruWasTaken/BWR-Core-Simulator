@@ -41,7 +41,7 @@ class simulator:
 
         threading.Thread(target=lambda: self.run_gui(self.layout), daemon=False).start()
         
-        group = 0
+        group = 1
 
         while group < glob.current_group:
             rods_helper.remove_group(group)

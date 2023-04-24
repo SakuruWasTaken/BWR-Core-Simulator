@@ -3,9 +3,11 @@ import PySimpleGUIWeb as sg
 from constants import rod_groups
 
 def remove_group(group_to_remove):
-    for rod in rod_groups.groups[group_to_remove]:
-        rod = rod.split("|")
-        glob.control_rods[rod[0]].update(cr_insertion=float(rod[1].split("-")[1]))
+    group_info = rod_groups.groups.get(group_to_remove)
+    for rod_number in rod_groups.group_rods.get(group_info["rod_group"]):
+        if "|" in rod_number:
+            rod_number = rod_number.split("|")[0]
+        glob.control_rods[rod_number].update(cr_insertion=float(group_info["max_position"]))
 
 def calculate_current_group():
     current_group = 0
@@ -16,10 +18,6 @@ def calculate_current_group():
     for group in rod_groups.groups:
         group_satisfied = True
         for rod in group:
-            # i know there are better ways to do this,
-            # but those would involve changing the format in rod_groups.py,
-            # and i'm not going through that again.
-
             rod = rod.split("|")
             group_rod_number = rod[0]
             limits = rod[1].split("-")
