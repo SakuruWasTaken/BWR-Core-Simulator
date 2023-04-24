@@ -65,9 +65,13 @@ class simulator:
         if int(insertion) >= 48:
             return
 
-        self.moving_rods.append(rod)
+        # time delay to unlatch control
+        time.sleep(random.uniform(0.00, 0.04))
 
-        # insert for 0.6 seconds before withdrawl
+        self.moving_rods.append(rod)
+        
+
+        # insert (unlatch) for 0.6 seconds before withdrawl
         runs = 0
         while runs < 6 and not self.scram_active: 
             self.cr_direction = 1
@@ -75,10 +79,10 @@ class simulator:
             if self.debug_mode:
                 print(f"IN: {insertion}")
             glob.control_rods[rod].update(cr_insertion=insertion)
-            time.sleep(0.1)
+            time.sleep(random.uniform(0.085, 0.115))
             runs += 1
 
-        time.sleep(0.1)
+        time.sleep(random.uniform(0, 0.15))
 
         # withdraw for 1.5 seconds
         runs = 0
@@ -88,8 +92,10 @@ class simulator:
             if self.debug_mode:
                 print(f"WD: {insertion}")
             glob.control_rods[rod].update(cr_insertion=insertion)
-            time.sleep(0.1)
+            time.sleep(random.uniform(0.090, 0.11))
             runs += 1
+
+        # TODO: simulate switching overlap between withdraw control and settle control
 
         # let the rod settle into the notch
         # TODO: settle after continuous withdraw
@@ -105,7 +111,7 @@ class simulator:
                 if self.debug_mode: 
                     print(f"SE: {insertion}")
                 glob.control_rods[rod].update(cr_insertion=insertion)
-                time.sleep(0.1)
+                time.sleep(random.uniform(0.090, 0.11))
                 runs += 1
             glob.control_rods[rod].update(cr_insertion=target_insertion)
 
@@ -130,6 +136,9 @@ class simulator:
 
         self.moving_rods.append(rod)
 
+        # time delay to insert control
+        time.sleep(random.uniform(0.00, 0.04))
+
         # insert for 2.9 seconds
         runs = 0
         while runs < 29 and not self.scram_active: 
@@ -138,10 +147,8 @@ class simulator:
             if self.debug_mode:
                 print(f"IN: {insertion}")
             glob.control_rods[rod].update(cr_insertion=insertion)
-            time.sleep(0.1)
+            time.sleep(random.uniform(0.090, 0.11))
             runs += 1
-
-        time.sleep(1.4)
 
         # let the rod settle into the notch
         if continuous == False:
@@ -155,7 +162,7 @@ class simulator:
                 if self.debug_mode:
                     print(f"SE: {insertion}")
                 glob.control_rods[rod].update(cr_insertion=insertion)
-                time.sleep(0.1)
+                time.sleep(random.uniform(0.090, 0.11))
                 runs += 1
             glob.control_rods[rod].update(cr_insertion=target_insertion)
 
@@ -186,14 +193,16 @@ class simulator:
                     # in a few videos from columbia's simulator, some of the "DRIFT" indicators
                     # seem to remain lit following a scram, i do not know what causes this, 
                     # but i will do this to replicate that effect.
-                    if cr_insertion == 48 and random.randint(1, 15) == 5:
-                        cr_drift_alarm = True
+                    # TODO: fix and re-enable
+                    #if cr_insertion == 48 and random.randint(1, 15) == 5:
+                        #cr_drift_alarm = True
 
                     if cr_insertion != 0 and self.scram_timer < 114:
                         if not rod_number in self.moving_rods:
                             self.moving_rods.append(rod_number)
                         # the time from full out to full in is around ~2.6 seconds
-                        cr_insertion -= 2.23
+                        # random is to give the appearance of some rods being faster/slower than others
+                        cr_insertion -= (2.23)
                         if cr_insertion <= 0:
                             cr_insertion = 0
                 else:
