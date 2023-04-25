@@ -7,6 +7,8 @@ current_group = 70
 rod_withdraw_block = False
 rod_insert_block = False
 
+rod_select_block = False
+
 mode_switch_position = 3
 # 0: shutdown
 # 1: refuel

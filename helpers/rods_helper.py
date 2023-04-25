@@ -110,7 +110,7 @@ def generate_control_rods():
                 }
 
                 # size=(5.2, 2) makes the buttons 52x52px
-                rods_row.append(sg.Button(rod_number, size=(5.2, 2)))
+                rods_row.append(sg.Button(rod_number, size=(5.2, 2), button_color=("#283b5b" if rod_number == "02-19" else "white", "white" if rod_number == "02-19" else "#283b5b")))
 
                 # increment y by 4 because we only have a control rod per every four fuel assemblies
                 x += 4

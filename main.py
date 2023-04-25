@@ -22,6 +22,11 @@ class simulator:
         # 2: withdrawing
         # 3: settling
 
+        self.continuous_mode = 0
+        # 0: stopped
+        # 1: continuous insert
+        # 2: continuous withdraw
+
         self.scram_timer = -1
 
         # actually running the simulator
@@ -38,7 +43,7 @@ class simulator:
         self.model_timer()
 
 
-    def withdraw_selected_cr(self, continuous = False):
+    def withdraw_selected_cr(self):
         if glob.rod_withdraw_block or self.cr_direction != 0:
             return
 
@@ -85,22 +90,20 @@ class simulator:
         # TODO: simulate switching overlap between withdraw control and settle control
 
         # let the rod settle into the notch
-        # TODO: settle after continuous withdraw
-        if continuous == False:
-            runs = 0
-            while runs < 60 and not self.scram_active: 
-                self.cr_direction = 3
-                if insertion >= target_insertion:
-                    insertion = target_insertion
-                else:
-                    insertion += 0.0064
-                
-                if self.debug_mode: 
-                    print(f"SE: {insertion}")
-                glob.control_rods[rod].update(cr_insertion=insertion)
-                time.sleep(random.uniform(0.090, 0.11))
-                runs += 1
-            glob.control_rods[rod].update(cr_insertion=target_insertion)
+        runs = 0
+        while runs < 60 and not self.scram_active: 
+            self.cr_direction = 3
+            if insertion >= target_insertion:
+                insertion = target_insertion
+            else:
+                insertion += 0.0064
+            
+            if self.debug_mode: 
+                print(f"SE: {insertion}")
+            glob.control_rods[rod].update(cr_insertion=insertion)
+            time.sleep(random.uniform(0.090, 0.11))
+            runs += 1
+        glob.control_rods[rod].update(cr_insertion=target_insertion)
 
         try:
             self.moving_rods.remove(rod)
@@ -108,7 +111,7 @@ class simulator:
             pass
         self.cr_direction = 0
 
-    def insert_selected_cr(self, continuous = False):
+    def insert_selected_cr(self):
         if glob.rod_insert_block or self.cr_direction != 0:
             return
 
@@ -138,20 +141,19 @@ class simulator:
             runs += 1
 
         # let the rod settle into the notch
-        if continuous == False:
-            runs = 0
-            while runs < 53 and not self.scram_active: 
-                self.cr_direction = 3
-                if insertion >= target_insertion:
-                    insertion = target_insertion
-                else:
-                    insertion += 0.0076
-                if self.debug_mode:
-                    print(f"SE: {insertion}")
-                glob.control_rods[rod].update(cr_insertion=insertion)
-                time.sleep(random.uniform(0.090, 0.11))
-                runs += 1
-            glob.control_rods[rod].update(cr_insertion=target_insertion)
+        runs = 0
+        while runs < 53 and not self.scram_active: 
+            self.cr_direction = 3
+            if insertion >= target_insertion:
+                insertion = target_insertion
+            else:
+                insertion += 0.0076
+            if self.debug_mode:
+                print(f"SE: {insertion}")
+            glob.control_rods[rod].update(cr_insertion=insertion)
+            time.sleep(random.uniform(0.090, 0.11))
+            runs += 1
+        glob.control_rods[rod].update(cr_insertion=target_insertion)
 
         try:
             self.moving_rods.remove(rod)
@@ -295,10 +297,11 @@ class simulator:
                     window[f"ROD_DISPLAY_{rod_number}"].update(rod_insertion, text_color=color, font=font)
             elif len(event) == 5 and "-" in event:
                 # we can assume it's a rod
-                # TODO: remove selected value from db and just use self.selected_cr
-                self.selected_cr = event
-                # this could potentially cause issues if a query happens in between but i'll fix it later
-                self.selected_cr = event
+                if self.moving_rods == [] and glob.rod_select_block == False:
+                    window.FindElement(self.selected_cr).Update(button_color=("white", "#283b5b"))
+                    self.selected_cr = event
+                    window.FindElement(event).Update(button_color=("#283b5b", "white"))
+
 
             elif event == "SCRAM":
                 self.scram_active = True
