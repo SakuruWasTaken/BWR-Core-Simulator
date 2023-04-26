@@ -1,4 +1,4 @@
-import os, sys, time, threading, random
+import os, sys, time, threading, random, math
 
 # TODO: switch to more flexible GUI library
 import PySimpleGUIWeb as sg
@@ -13,6 +13,9 @@ class simulator:
 
         # stuff for rods
         self.scram_active = False
+
+        self.half_scram = False
+
         self.selected_cr = "02-19"
 
         self.moving_rods = []
@@ -27,7 +30,16 @@ class simulator:
         # 1: continuous insert
         # 2: continuous withdraw
 
+        self.rod_commanded_movement = 0
+        # 0: not moving
+        # 1: inserting
+        # 2: withdrawing
+
+        self.target_insertion = 0
+
         self.scram_timer = -1
+
+        self.previous_insertion = 0
 
         # actually running the simulator
 
@@ -50,7 +62,7 @@ class simulator:
         # TODO: rod groups
         rod = self.selected_cr
         insertion = glob.control_rods.get(rod)["cr_insertion"]
-        target_insertion = insertion + 2
+        self.target_insertion = insertion + 2
   
         
         # TODO: rod overtravel check
@@ -61,6 +73,8 @@ class simulator:
         time.sleep(random.uniform(0.00, 0.04))
 
         self.moving_rods.append(rod)
+        self.previous_insertion = insertion
+        self.rod_commanded_movement = 2
         
 
         # insert (unlatch) for 0.6 seconds before withdrawl
@@ -93,8 +107,8 @@ class simulator:
         runs = 0
         while runs < 60 and not self.scram_active: 
             self.cr_direction = 3
-            if insertion >= target_insertion:
-                insertion = target_insertion
+            if insertion >= self.target_insertion:
+                insertion = self.target_insertion
             else:
                 insertion += 0.0064
             
@@ -103,13 +117,98 @@ class simulator:
             glob.control_rods[rod].update(cr_insertion=insertion)
             time.sleep(random.uniform(0.090, 0.11))
             runs += 1
-        glob.control_rods[rod].update(cr_insertion=target_insertion)
+        glob.control_rods[rod].update(cr_insertion=self.target_insertion)
 
         try:
             self.moving_rods.remove(rod)
         except:
             pass
         self.cr_direction = 0
+        self.rod_commanded_movement = 0
+
+    def continuous_withdraw_selected_cr(self):
+        if glob.rod_withdraw_block or self.cr_direction != 0:
+            return
+
+        # TODO: rod groups
+        rod = self.selected_cr
+        insertion = glob.control_rods.get(rod)["cr_insertion"]
+
+        # TODO: rod overtravel check
+        if int(insertion) >= 48:
+            return
+
+        # time delay to unlatch control
+        time.sleep(random.uniform(0.00, 0.04))
+        self.moving_rods.append(rod)
+        self.target_insertion = insertion + 2
+        self.previous_insertion = insertion
+        self.rod_commanded_movement = 2
+        
+
+        # insert (unlatch) for 0.5 seconds before withdrawl
+        runs = 0
+        while runs < 5 and not self.scram_active: 
+            self.cr_direction = 1
+            insertion -= 0.082
+            if self.debug_mode:
+                print(f"IN: {insertion}")
+            glob.control_rods[rod].update(cr_insertion=insertion)
+            time.sleep(random.uniform(0.085, 0.115))
+            runs += 1
+
+        time.sleep(random.uniform(0, 0.15))
+
+        # withdraw for 1.4 seconds each cycle
+        self.continuous_mode = 2
+        self.cr_direction = 2
+        
+        while self.continuous_mode == 2 and not glob.rod_withdraw_block and not self.scram_active and self.target_insertion <= 46 or self.target_insertion == 48:
+            runs = 0
+            while runs < 14 and not self.scram_active: 
+                insertion += 0.1435
+                if self.debug_mode:
+                    print(f"CWD: {insertion}")
+                glob.control_rods[rod].update(cr_insertion=insertion)
+                time.sleep(random.uniform(0.090, 0.11))
+                runs += 1
+
+            self.previous_insertion = self.target_insertion
+
+            if not glob.rod_withdraw_block and not self.scram_active and self.continuous_mode == 2 and self.target_insertion != 48:
+                self.target_insertion += 2
+                if self.debug_mode:
+                    print(f"target insertion changed: {self.target_insertion}")
+            else:
+                break
+            
+        self.previous_insertion = self.target_insertion
+        self.continuous_mode = 0
+
+        # TODO: simulate switching overlap between withdraw control and settle control
+
+        # let the rod settle into the notch
+        runs = 0
+        while runs < 60 and not self.scram_active: 
+            self.cr_direction = 3
+            if insertion >= self.target_insertion:
+                insertion = self.target_insertion
+            else:
+                insertion += 0.0070
+            
+            if self.debug_mode: 
+                print(f"SE: {insertion}")
+            glob.control_rods[rod].update(cr_insertion=insertion)
+            time.sleep(random.uniform(0.090, 0.11))
+            runs += 1
+        glob.control_rods[rod].update(cr_insertion=self.target_insertion)
+
+        try:
+            self.moving_rods.remove(rod)
+        except:
+            pass
+        self.cr_direction = 0
+        self.rod_commanded_movement = 0
 
     def insert_selected_cr(self):
         if glob.rod_insert_block or self.cr_direction != 0:
@@ -118,16 +217,19 @@ class simulator:
         # TODO: rod groups
         rod = self.selected_cr
         insertion = glob.control_rods.get(rod)["cr_insertion"]
-        target_insertion = insertion - 2
+        self.target_insertion = insertion - 2
         
         # TODO: rod overtravel check
         if int(insertion) <= 0:
             return
 
-        self.moving_rods.append(rod)
 
         # time delay to insert control
         time.sleep(random.uniform(0.00, 0.04))
+
+        self.moving_rods.append(rod)
+        self.previous_insertion = insertion
+        self.rod_commanded_movement = 1
 
         # insert for 2.9 seconds
         runs = 0
@@ -144,8 +246,8 @@ class simulator:
         runs = 0
         while runs < 53 and not self.scram_active: 
             self.cr_direction = 3
-            if insertion >= target_insertion:
-                insertion = target_insertion
+            if insertion >= self.target_insertion:
+                insertion = self.target_insertion
             else:
                 insertion += 0.0076
             if self.debug_mode:
@@ -153,14 +255,89 @@ class simulator:
             glob.control_rods[rod].update(cr_insertion=insertion)
             time.sleep(random.uniform(0.090, 0.11))
             runs += 1
-        glob.control_rods[rod].update(cr_insertion=target_insertion)
+        glob.control_rods[rod].update(cr_insertion=self.target_insertion)
 
         try:
             self.moving_rods.remove(rod)
         except:
             pass
         self.cr_direction = 0
+        self.rod_commanded_movement = 0
 
+    def continuous_insert_selected_cr(self):
+        if glob.rod_insert_block or self.cr_direction != 0:
+            return
+
+        # TODO: rod groups
+        rod = self.selected_cr
+        insertion = glob.control_rods.get(rod)["cr_insertion"]
+        
+        
+        # TODO: rod overtravel check
+        if int(insertion) <= 0:
+            return
+
+        # time delay to insert control
+        time.sleep(random.uniform(0.00, 0.04))
+        self.moving_rods.append(rod)
+        self.target_insertion = insertion - 2
+        self.previous_insertion = insertion
+        self.rod_commanded_movement = 1
+        self.continuous_mode = 1
+        self.cr_direction = 1
+
+        # insert for 2.9 seconds each cycle
+        while self.continuous_mode == 1 and not glob.rod_insert_block and not self.scram_active and self.target_insertion >= 2 or self.target_insertion == 0:
+            runs = 0
+            while runs < 24 and not self.scram_active: 
+                insertion -= 0.0832
+                if self.debug_mode:
+                    print(f"CIN: {insertion}")
+                glob.control_rods[rod].update(cr_insertion=insertion)
+                time.sleep(random.uniform(0.090, 0.11))
+                runs += 1
+            self.previous_insertion = self.target_insertion
+            if not glob.rod_insert_block and not self.scram_active and self.continuous_mode == 1 and self.target_insertion != 0:
+                self.target_insertion -= 2
+                if self.debug_mode:
+                    print(f"target insertion changed: {self.target_insertion}")
+            else:
+                break
+
+        # move the rod a tiny bit further for settle
+        # TODO: is this realistic?
+        if not self.scram_active:
+            runs = 0
+            while runs < 4 and not self.scram_active: 
+                insertion -= 0.082
+                glob.control_rods[rod].update(cr_insertion=insertion)
+                time.sleep(random.uniform(0.090, 0.11))
+                runs += 1
+        
+        self.previous_insertion = self.target_insertion
+        self.continuous_mode = 0
+
+        # let the rod settle into the notch
+        runs = 0
+        while runs < 53 and not self.scram_active: 
+            self.cr_direction = 3
+            if insertion >= self.target_insertion:
+                insertion = self.target_insertion
+            else:
+                insertion += 0.0076
+            if self.debug_mode:
+                print(f"SE: {insertion}")
+            glob.control_rods[rod].update(cr_insertion=insertion)
+            time.sleep(random.uniform(0.090, 0.11))
+            runs += 1
+        glob.control_rods[rod].update(cr_insertion=self.target_insertion)
+
+        try:
+            self.moving_rods.remove(rod)
+        except:
+            pass
+        self.cr_direction = 0
+        self.rod_commanded_movement = 0
 
 
     def control_rods_cycle(self):
@@ -214,26 +391,35 @@ class simulator:
 
 
     def reset_scram(self):
-        self.scram_active = False
-        self.scram_timer = -1
-        # short pause to wait for control_rods_cycle to finish
-        time.sleep(0.1)
-        glob.rod_withdraw_block = False
-        glob.rod_insert_block = False
-        for rod_number, rod_info in glob.control_rods.items():
-            glob.control_rods[rod_number].update(cr_scram=False, cr_accum_trouble=False, cr_drift_alarm=False)
+        if self.scram_active == True:
+            self.scram_active = False
+            self.half_scram = False
+            self.scram_timer = -1
+            # short pause to wait for control_rods_cycle to finish
+            time.sleep(0.1)
+            glob.rod_withdraw_block = False
+            glob.rod_insert_block = False
+            for rod_number, rod_info in glob.control_rods.items():
+                glob.control_rods[rod_number].update(cr_scram=False, cr_accum_trouble=False, cr_drift_alarm=False)
+
+        elif self.half_scram == True:
+            self.half_scram = False
 
 
 
     def run_gui(self, layout):
-        
         column_1 = layout
-        column_2 = [[sg.Text("Rod Motion")], [sg.Button("Withdraw", size=(5.2, 2)), sg.Button("Insert", size=(5.2, 2)), sg.Button("SCRAM", size=(5.2, 2)), sg.Button("Reset SCRAM", size=(5.2, 2))]]
+        column_2 = [[sg.Text("Rod Motion")], 
+            [sg.Button("Withdraw", size=(5.2, 2)), sg.Button("Insert", size=(5.2, 2))],
+            [sg.Button("Cont.\nWithdraw", size=(5.2, 2)), sg.Button("Stop", size=(5.2, 2)), sg.Button("Cont.\nInsert", size=(5.2, 2))],
+            [sg.Button("Manual\nSCRAM\nTrip A", size=(5.2, 2)), sg.Button("Manual\nSCRAM\nTrip B", size=(5.2, 2)), sg.Button("Reset SCRAM", size=(5.2, 2))]
+        ]
         column_3 = [[sg.Text("Rod Positions")]]
         column_4 = [[sg.Text("Information")], 
         [
             sg.Text("Rod Withdraw Block", text_color='greenyellow', key="withdraw_block"),
             sg.Text("Rod Insert Block", text_color='greenyellow', key="insert_block"),
+            sg.Text("Half SCRAM", text_color='greenyellow', key="half_scram"),
             sg.Text("SCRAM Active", text_color='greenyellow', key="scram_active")
         ],
         [
@@ -276,6 +462,7 @@ class simulator:
                 window["withdraw_block"].update(text_color="darkred" if glob.rod_withdraw_block else "greenyellow")
                 window["insert_block"].update(text_color="darkred" if glob.rod_insert_block else "greenyellow")
                 window["scram_active"].update(text_color="darkred" if self.scram_active else "greenyellow")
+                window["half_scram"].update(text_color="darkred" if self.half_scram else "greenyellow")
                 window["selected_rod"].update(f"Selected rod: {self.selected_cr}")
                 window["current_group"].update(f"Current group: {glob.current_group + 1}")
                 window["withdraw_lt"].update(text_color="darkred" if self.cr_direction == 2 else "greenyellow")
@@ -284,16 +471,28 @@ class simulator:
 
                 for rod_number, rod_info in glob.control_rods.items():
                     rod_insertion = int(rod_info["cr_insertion"])
-                    color = "darkred" if rod_insertion == 48 or rod_number in self.moving_rods else "greenyellow" if rod_insertion == 0 else "black" if rod_insertion == 49 else "orange" 
-                    if len(str(rod_insertion)) == 1:
-                        rod_insertion = f"0{rod_insertion}"
-                    if rod_number in self.moving_rods:
-                        rod_insertion = "--"
+                    color = "darkred" if rod_insertion == 48 or rod_insertion != 0 and self.scram_active else "greenyellow" if rod_insertion == 0 else "black" if rod_insertion == 49 else "white" if rod_number in self.moving_rods and not self.scram_active else "orange" 
+                    #if rod_number in self.moving_rods:
+                        #rod_insertion = round(rod_info["cr_insertion"], 5)
                     font = ("monospace", 15)
                     # check if rod is selected
                     if rod_number == self.selected_cr:
                         font = ("monospace", 18)
                     
+                    rod_insertion = int(rod_insertion)
+                    
+                    if rod_number in self.moving_rods and not self.scram_active:
+                        rod_insertion = int(self.previous_insertion)
+
+                    if self.scram_active and rod_insertion != 0:
+                        rod_insertion = "--"
+
+                    elif rod_insertion == 48 and not rod_number in self.moving_rods:
+                        rod_insertion = "**"
+
+                    if len(str(rod_insertion)) == 1:
+                        rod_insertion = f"0{rod_insertion}"
+
                     window[f"ROD_DISPLAY_{rod_number}"].update(rod_insertion, text_color=color, font=font)
             elif len(event) == 5 and "-" in event:
                 # we can assume it's a rod
@@ -303,14 +502,32 @@ class simulator:
                     window.FindElement(event).Update(button_color=("#283b5b", "white"))
 
 
-            elif event == "SCRAM":
-                self.scram_active = True
+            elif event == "Manual\nSCRAM\nTrip A":
+                if self.half_scram == True:
+                    self.scram_active = True
+                else:
+                    self.half_scram = True
+
+            elif event == "Manual\nSCRAM\nTrip B":
+                if self.half_scram == True:
+                    self.scram_active = True
+                else:
+                    self.half_scram = True
 
             elif event == "Withdraw":
                 threading.Thread(target=lambda: self.withdraw_selected_cr(), daemon=False).start()
 
             elif event == "Insert":
                 threading.Thread(target=lambda: self.insert_selected_cr(), daemon=False).start()
+
+            elif event == "Cont.\nWithdraw":
+                threading.Thread(target=lambda: self.continuous_withdraw_selected_cr(), daemon=False).start()
+
+            elif event == "Cont.\nInsert":
+                threading.Thread(target=lambda: self.continuous_insert_selected_cr(), daemon=False).start()
+
+            elif event == "Stop":
+                self.continuous_mode = 0
 
             elif event == "Reset SCRAM":
                 threading.Thread(target=lambda: self.reset_scram(), daemon=False).start()
