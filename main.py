@@ -471,13 +471,15 @@ class simulator:
 
                 for rod_number, rod_info in glob.control_rods.items():
                     rod_insertion = int(rod_info["cr_insertion"])
-                    color = "darkred" if rod_insertion == 48 or rod_insertion != 0 and self.scram_active else "greenyellow" if rod_insertion == 0 else "black" if rod_insertion == 49 else "white" if rod_number in self.moving_rods and not self.scram_active else "orange" 
+                    # these colours are from kashiwazaki-kariwa/fukushima daini (toshiba RPIS), i'm not entirely sure how accurate this is, though
+                    # TODO: rods not in current group are yellow, rods in current group are white
+                    color = "aqua" if rod_number == self.selected_cr else "darkred" if rod_insertion == 48 or rod_insertion != 0 and self.scram_active else "greenyellow" if rod_insertion == 0 else "black" if rod_insertion == 49 else "white" 
                     #if rod_number in self.moving_rods:
                         #rod_insertion = round(rod_info["cr_insertion"], 5)
                     font = ("monospace", 15)
                     # check if rod is selected
-                    if rod_number == self.selected_cr:
-                        font = ("monospace", 18)
+                    #if rod_number == self.selected_cr:
+                        #font = ("monospace", 18)
                     
                     rod_insertion = int(rod_insertion)
                     
