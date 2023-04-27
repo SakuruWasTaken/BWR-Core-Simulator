@@ -10,51 +10,34 @@ def remove_group(group_to_remove):
         glob.control_rods[rod_number].update(cr_insertion=float(group_info["max_position"]))
 
 def calculate_current_group():
-    current_group = 0
-    satisfied_groups = []
-    groups_inserted_past_limit = []
-    groups_withdrawn_past_limit = []
+    # this is a very inefficient way of doing this but im too lazy to come up with a better way
+    for group_number, group_info in rod_groups.groups.items():
+        for rod_number in rod_groups.group_rods.get(group_info["rod_group"]):
+            if group_number < glob.current_group:
+                break
+            if "|" in rod_number:
+                rod_number = rod_number.split("|")[0]
 
-    for group in rod_groups.groups:
-        group_satisfied = True
-        for rod in group:
-            rod = rod.split("|")
-            group_rod_number = rod[0]
-            limits = rod[1].split("-")
-            withdraw_limit = float(limits[1])
-            insert_limit = float(limits[0])
+            if int(glob.control_rods.get(rod_number)["cr_insertion"]) == group_info["max_position"] and not rod_number in glob.moving_rods:
+                try:
+                    glob.current_group_rods.remove(rod_number)
+                except:
+                    pass
 
-            current_insertion = glob.control_rods.get(group_rod_number)["cr_insertion"]
+                if len(glob.current_group_rods) == 0:
+                    glob.current_group_info = rod_groups.groups.get(glob.current_group + 1)
+                    next_group_rods_formatted = []
+                    next_group_rods = rod_groups.group_rods.get(glob.current_group_info["rod_group"])
+                    for rod in next_group_rods:
+                        if "|" in rod:
+                            rod = rod_number.split("|")[0]
+                        next_group_rods_formatted.append(rod)
 
-            if current_insertion != withdraw_limit:
-                group_satisfied = False
-
-            if current_insertion < insert_limit:
-                groups_inserted_past_limit.append(current_group)
-            elif current_insertion > withdraw_limit:
-                groups_withdrawn_past_limit.append(current_group)
-
-        if group_satisfied:
-            satisfied_groups.append(current_group)
-            #print(f"group {current_group + 1} satisfied")
-
-
-        current_group += 1
-    if satisfied_groups != []:
-        glob.current_group = satisfied_groups[-1] + 1
-        if groups_inserted_past_limit != []:
-            for group in groups_inserted_past_limit:
-                if group == glob.current_group:
-                    print(f"inserted past limit: {group}")
-                    glob.rod_insert_block = True
-
-        elif groups_withdrawn_past_limit != []:
-            for group in groups_withdrawn_past_limit:
-                if group == glob.current_group:
-                    print(f"withdrawn past limit: {group}")
-                    glob.rod_withdraw_block = True
-    else:
-        glob.current_group = 0
+                    glob.current_group_rods = next_group_rods_formatted
+                    glob.current_group += 1
+                    return
+            else:
+                break
 
 
 
