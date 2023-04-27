@@ -119,7 +119,7 @@ class simulator:
         glob.control_rods[rod].update(cr_insertion=self.target_insertion)
 
         if glob.rod_select_error:
-            glob.rod_withdraw_block.append(f"Withdraw error on {rod}")
+            glob.rod_withdraw_block.append(f"Withdraw error on {rod}, correct position is {int(self.previous_insertion)}")
 
         try:
             glob.moving_rods.remove(rod)
@@ -178,10 +178,10 @@ class simulator:
             self.previous_insertion = self.target_insertion
 
             if glob.rod_withdraw_block == [] and not self.scram_active and self.continuous_mode == 2 and self.target_insertion != 48:
-                self.target_insertion += 2
                 if glob.rod_select_error:
-                    glob.rod_withdraw_block.append(f"Withdraw error on {rod}")
+                    glob.rod_withdraw_block.append(f"Withdraw error on {rod}, correct position is {int(self.previous_insertion) - 2}")
                     break
+                self.target_insertion += 2
                 if self.debug_mode:
                     print(f"target insertion changed: {self.target_insertion}")
             else:
@@ -261,8 +261,8 @@ class simulator:
             time.sleep(random.uniform(0.090, 0.11))
             runs += 1
         glob.control_rods[rod].update(cr_insertion=self.target_insertion)
-        if f"Withdraw error on {rod}" in glob.rod_withdraw_block:
-            glob.rod_withdraw_block.remove(f"Withdraw error on {rod}")
+        if f"Withdraw error on {rod}, correct position is {int(insertion)}" in glob.rod_withdraw_block:
+            glob.rod_withdraw_block.remove(f"Withdraw error on {rod}, correct position is {int(insertion)}")
 
         try:
             glob.moving_rods.remove(rod)
@@ -305,9 +305,9 @@ class simulator:
                 runs += 1
             self.previous_insertion = self.target_insertion
             if glob.rod_insert_block == [] and not self.scram_active and self.continuous_mode == 1 and self.target_insertion != 0:
+                if f"Withdraw error on {rod}, correct position is {int(self.previous_insertion)}" in glob.rod_withdraw_block:
+                    glob.rod_withdraw_block.remove(f"Withdraw error on {rod}, correct position is {int(self.previous_insertion)}")
                 self.target_insertion -= 2
-                if f"Withdraw error on {rod}" in glob.rod_withdraw_block:
-                    glob.rod_withdraw_block.remove(f"Withdraw error on {rod}")
                 if self.debug_mode:
                     print(f"target insertion changed: {self.target_insertion}")
             else:
