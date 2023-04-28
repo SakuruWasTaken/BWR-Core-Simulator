@@ -558,7 +558,7 @@ class simulator:
                         next_rod = glob.current_group_rods[0]
                     except:
                         next_rod = ""
-                    color = "aqua" if rod_number == self.selected_cr else "mediumpurple" if rod_number == next_rod else "yellow" if rod_number in glob.current_group_rods else "darkred" if rod_insertion == 48 or rod_insertion != 0 and self.scram_active else "yellowgreen" if rod_insertion == 0 else "black" if rod_insertion == 49 else "white"
+                    color = "aqua" if rod_number == self.selected_cr else "mediumpurple" if rod_number == next_rod else "white" if rod_number in glob.current_group_rods else "darkred" if rod_insertion == 48 or rod_insertion != 0 and self.scram_active else "yellowgreen" if rod_insertion == 0 else "black" if rod_insertion == 49 else "yellow"
                     #if rod_number in glob.moving_rods:
                         #rod_insertion = round(rod_info["cr_insertion"], 5)
                     font = ("monospace", 15)
@@ -586,7 +586,7 @@ class simulator:
                 # we can assume it's a rod
                 if glob.moving_rods == [] and glob.rod_select_block == False:
                     window.FindElement(self.selected_cr).Update(button_color=("white", "#283b5b"))
-                    if event == next_rod:
+                    if event in glob.current_group_rods or event == next_rod:
                         glob.rod_select_error = False
                     else:
                         glob.rod_select_error = True

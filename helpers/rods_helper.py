@@ -3,16 +3,16 @@ import PySimpleGUIWeb as sg
 from constants import rod_groups
 
 def remove_group(group_to_remove):
-    group_info = rod_groups.groups.get(group_to_remove)
-    for rod_number in rod_groups.group_rods.get(group_info["rod_group"]):
+    group_info = rod_groups.groups["sequence_a"].get(group_to_remove)
+    for rod_number in rod_groups.group_rods["sequence_a"].get(group_info["rod_group"]):
         if "|" in rod_number:
             rod_number = rod_number.split("|")[0]
         glob.control_rods[rod_number].update(cr_insertion=float(group_info["max_position"]))
 
 def calculate_current_group():
     # this is a very inefficient way of doing this but im too lazy to come up with a better way
-    for group_number, group_info in rod_groups.groups.items():
-        for rod_number in rod_groups.group_rods.get(group_info["rod_group"]):
+    for group_number, group_info in rod_groups.groups["sequence_a"].items():
+        for rod_number in rod_groups.group_rods["sequence_a"].get(group_info["rod_group"]):
             if group_number < glob.current_group:
                 break
             if "|" in rod_number:
@@ -25,9 +25,9 @@ def calculate_current_group():
                     pass
 
                 if len(glob.current_group_rods) == 0:
-                    glob.current_group_info = rod_groups.groups.get(glob.current_group + 1)
+                    glob.current_group_info = rod_groups.groups["sequence_a"].get(glob.current_group + 1)
                     next_group_rods_formatted = []
-                    next_group_rods = rod_groups.group_rods.get(glob.current_group_info["rod_group"])
+                    next_group_rods = rod_groups.group_rods["sequence_a"].get(glob.current_group_info["rod_group"])
                     for rod in next_group_rods:
                         if "|" in rod:
                             rod = rod_number.split("|")[0]
