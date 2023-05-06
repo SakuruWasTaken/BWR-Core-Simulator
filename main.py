@@ -119,7 +119,7 @@ class simulator:
         glob.control_rods[rod].update(cr_insertion=self.target_insertion)
 
         if glob.rod_select_error:
-            glob.rod_withdraw_block.append(f"Withdraw error on {rod}, correct position is {int(self.previous_insertion)}")
+            glob.rod_withdraw_block.append({"type": "wdr_error", "rod": rod, "correct_position": int(self.previous_insertion)})
 
         try:
             glob.moving_rods.remove(rod)
@@ -179,7 +179,7 @@ class simulator:
 
             if glob.rod_withdraw_block == [] and not self.scram_active and self.continuous_mode == 2 and self.target_insertion != 48:
                 if glob.rod_select_error:
-                    glob.rod_withdraw_block.append(f"Withdraw error on {rod}, correct position is {int(self.previous_insertion) - 2}")
+                    glob.rod_withdraw_block.append({"type": "wdr_error", "rod": rod, "correct_position": int(self.previous_insertion) - 2})
                     break
                 self.target_insertion += 2
                 if self.debug_mode:
@@ -261,8 +261,8 @@ class simulator:
             time.sleep(random.uniform(0.090, 0.11))
             runs += 1
         glob.control_rods[rod].update(cr_insertion=self.target_insertion)
-        if f"Withdraw error on {rod}, correct position is {int(insertion)}" in glob.rod_withdraw_block:
-            glob.rod_withdraw_block.remove(f"Withdraw error on {rod}, correct position is {int(insertion)}")
+        if {"type": "wdr_error", "rod": rod, "correct_position": int(insertion)} in glob.rod_withdraw_block:
+            glob.rod_withdraw_block.remove({"type": "wdr_error", "rod": rod, "correct_position": int(insertion)})
 
         try:
             glob.moving_rods.remove(rod)
@@ -305,8 +305,8 @@ class simulator:
                 runs += 1
             self.previous_insertion = self.target_insertion
             if glob.rod_insert_block == [] and not self.scram_active and self.continuous_mode == 1 and self.target_insertion != 0:
-                if f"Withdraw error on {rod}, correct position is {int(self.previous_insertion)}" in glob.rod_withdraw_block:
-                    glob.rod_withdraw_block.remove(f"Withdraw error on {rod}, correct position is {int(self.previous_insertion)}")
+                if {"type": "wdr_error", "rod": rod, "correct_position": int(self.previous_insertion)} in glob.rod_withdraw_block:
+                    glob.rod_withdraw_block.remove({"type": "wdr_error", "rod": rod, "correct_position": int(self.previous_insertion)})
                 self.target_insertion -= 2
                 if self.debug_mode:
                     print(f"target insertion changed: {self.target_insertion}")
@@ -360,7 +360,7 @@ class simulator:
             if cr_scram == True: 
                 if self.scram_timer == -1:
                     self.scram_timer = 120
-                glob.rod_withdraw_block.append("SCRAM")
+                glob.rod_withdraw_block.append({"type": "SCRAM"})
                 if cr_insertion != 0:
                     if self.scram_timer < 117:
                         cr_accum_trouble = True
@@ -406,7 +406,7 @@ class simulator:
             self.scram_timer = -1
             # short pause to wait for control_rods_cycle to finish
             time.sleep(0.1)
-            glob.rod_withdraw_block.remove("SCRAM")
+            glob.rod_withdraw_block.remove({"type": "SCRAM"})
             for rod_number, rod_info in glob.control_rods.items():
                 glob.control_rods[rod_number].update(cr_scram=False, cr_accum_trouble=False, cr_drift_alarm=False)
 
@@ -427,10 +427,19 @@ class simulator:
             [sg.Button("Cont.\nWithdraw", size=(5.2, 2)), sg.Button("Stop", size=(5.2, 2)), sg.Button("Cont.\nInsert", size=(5.2, 2))],
             [sg.Button("Manual\nSCRAM\nTrip A", size=(5.2, 2)), sg.Button("Manual\nSCRAM\nTrip B", size=(5.2, 2)), sg.Button("Reset SCRAM", size=(5.2, 2))]
         ]
-        column_3 = [[sg.Text("CR Guide", size=(15,1), justification="center", background_color="black")],
+        
+        cr_guide = [[sg.Text("CR Guide", size=(15,1), justification="center", background_color="black")],
             [sg.Text("NEX 00-00 00→00", text_color="yellowgreen", key="cr_guide_next", size=(15, 1), justification="center", font=("monospace", 15), background_color="black")],
             [sg.Text("SEL 00-00 00→00", text_color="white", key="cr_guide_selected", size=(15, 1), justification="center", font=("monospace", 15), background_color="black")]
         ]
+
+        rwm_display = [[sg.Text("RWM", size=(15,1), justification="center", background_color="black")],
+            [sg.Text("GROUP   55", text_color="white", key="rwm_display_group", size=(15, 1), justification="center", font=("monospace", 15), background_color="black")],
+            [sg.Text("INS ERR   00-00", text_color="white", key="rwm_display_ins_err", size=(15, 1), justification="center", font=("monospace", 15), background_color="black")],
+            [sg.Text("WDR ERR   00-00", text_color="white", key="rwm_display_wdr_err", size=(15, 1), justification="center", font=("monospace", 15), background_color="black")]
+        ]
+
+        column_3 = [[sg.Column(cr_guide, element_justification='c', background_color="black"), sg.Column(rwm_display, element_justification='c', background_color="black")]]
         column_4 = [[sg.Text("Information")], 
             [
                 sg.Text("Rod Withdraw Block", text_color='greenyellow', key="withdraw_block"),
@@ -550,6 +559,21 @@ class simulator:
                 window["insert_lt"].update(text_color="darkred" if self.cr_direction == 1 else "greenyellow")
                 window["settle_lt"].update(text_color="darkred" if self.cr_direction == 3 else "greenyellow")
                 window["rod_select_error"].update(text_color="darkred" if glob.rod_select_error else "greenyellow")
+                window["rwm_display_group"].update(f"GROUP   {glob.current_group}")
+                {"type": "wdr_error", "rod": rod, "correct_position": int(self.previous_insertion)}
+                rod = "    "
+                for info in glob.rod_withdraw_block:
+                    block_type = info["type"]
+                    if block_type == "wdr_error":
+                        rod = info["rod"]
+                window["rwm_display_wdr_err"].update(f"WDR ERR   {rod}")
+                rod = "    "
+                for info in glob.rod_insert_block:
+                    block_type = info["type"]
+                    if block_type == "ins_error":
+                        rod = info["rod"]
+                window["rwm_display_ins_err"].update(f"INS ERR   {rod}")
+                    
 
                 for rod_number, rod_info in glob.control_rods.items():
                     rod_insertion = int(rod_info["cr_insertion"])
